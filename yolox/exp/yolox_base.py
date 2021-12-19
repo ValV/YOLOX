@@ -111,6 +111,7 @@ class Exp(BaseExp):
             dataset = COCODataset(
                 data_dir=self.data_dir,
                 json_file=self.train_ann,
+                name=os.path.basename(self.train_ann).split('_')[-1].split('.json')[0],
                 img_size=self.input_size,
                 preproc=TrainTransform(
                     max_labels=50,
@@ -243,7 +244,9 @@ class Exp(BaseExp):
         valdataset = COCODataset(
             data_dir=self.data_dir,
             json_file=self.val_ann if not testdev else "image_info_test-dev2017.json",
-            name="val2017" if not testdev else "test2017",
+            name=(os.path.basename(self.val_ann).split('_')[-1]
+                  .split('.json')[0]
+                  .replace('-dev', '-dev' if not testdev else '')),
             img_size=self.test_size,
             preproc=ValTransform(legacy=legacy),
         )
