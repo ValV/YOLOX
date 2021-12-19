@@ -2,9 +2,10 @@
 # -*- coding:utf-8 -*-
 # Copyright (c) Megvii, Inc. and its affiliates.
 
-import argparse
 import random
 import warnings
+
+from dataclasses import dataclass
 from loguru import logger
 
 import torch
@@ -15,12 +16,31 @@ from yolox.exp import get_exp
 from yolox.utils import configure_nccl, configure_omp, get_num_devices
 
 
-def make_parser():
+@dataclass
+class ConfigTrain:
+    experiment_name: str = None
+    name: str = None  # model name
+    dist_backend: str = 'nccl'  # distributed backend
+    dist_url: str = None  # url used to set up distributed training
+    devices: int = None  # device for training
+    exp_file: str = None  # plz input your experiment description file
+    resume: bool = False  # resume training
+    ckpt: str = None  # checkpoint file
+    start_epoch: int = None  # resume training start epoch
+    num_machines: int = 1  # num of node for training
+    machine_rank: int = 0  # node rank for multi-node training
+    fp16: bool = False  # adopting mix precision training
+    cache: bool = False  # caching imgs to RAM for fast training
+    occupy: bool = False  # occupy GPU memory first for training
+    opts: tuple = ()  # experiment config options
+
+
+def make_parser(argparse):
     parser = argparse.ArgumentParser("YOLOX train parser")
     parser.add_argument("-expn", "--experiment-name", type=str, default=None)
     parser.add_argument("-n", "--name", type=str, default=None, help="model name")
 
-    # distributed
+    # Distributed
     parser.add_argument(
         "--dist-backend", default="nccl", type=str, help="distributed backend"
     )
@@ -111,7 +131,8 @@ def main(exp, args):
 
 
 if __name__ == "__main__":
-    args = make_parser().parse_args()
+    import argparse
+    args = make_parser(argparse).parse_args()
     exp = get_exp(args.exp_file, args.name)
     exp.merge(args.opts)
 
