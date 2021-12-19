@@ -2,12 +2,13 @@
 # -*- coding:utf-8 -*-
 # Copyright (c) Megvii, Inc. and its affiliates.
 
-import argparse
 import os
 import time
+
+from dataclasses import dataclass
 from loguru import logger
 
-import cv2
+import cv2 as cv
 
 import torch
 
@@ -19,7 +20,27 @@ from yolox.utils import fuse_model, get_model_info, postprocess, vis
 IMAGE_EXT = [".jpg", ".jpeg", ".webp", ".bmp", ".png"]
 
 
-def make_parser():
+@dataclass
+class ConfigDemo:
+    demo: str = 'image'  # demo type, eg. image, video and webcam
+    experiment_name: str = None  # experiment name
+    name: str = None  # model name
+    path: str = './assets/dog.jpg'  # path to images or video
+    camid: int = 0  # webcam demo camera id
+    save_result: bool = False  # whether to save the inference result of image/video
+    exp_file: str = None  # pls input your experiment description file
+    ckpt: str = None  # checkpoint for eval
+    device: str = 'cpu'  # device to run the model, can either be 'cpu' or 'gpu'
+    conf: float = 0.3  # test confidence
+    nms: float = 0.3  # non-maximum supression threshold
+    tsize: int = None  # test image size
+    fp16: bool = False  # adopting mix precision evaluating
+    legacy: bool = False  # to be compatible with older versions
+    fuse: bool = False  # fuse conv and bn for testing
+    trt: bool = False  # using TensorRT model for testing
+
+
+def make_parser(argparse):
     parser = argparse.ArgumentParser("YOLOX Demo!")
     parser.add_argument(
         "demo", default="image", help="demo type, eg. image, video and webcam"
@@ -133,7 +154,7 @@ class Predictor(object):
         img_info = {"id": 0}
         if isinstance(img, str):
             img_info["file_name"] = os.path.basename(img)
-            img = cv2.imread(img)
+            img = cv.imread(img)
         else:
             img_info["file_name"] = None
 
@@ -174,7 +195,7 @@ class Predictor(object):
 
         bboxes = output[:, 0:4]
 
-        # preprocessing: resize
+        # Preprocessing: resize
         bboxes /= ratio
 
         cls = output[:, 6]
@@ -194,23 +215,30 @@ def image_demo(predictor, vis_folder, path, current_time, save_result):
         outputs, img_info = predictor.inference(image_name)
         result_image = predictor.visual(outputs[0], img_info, predictor.confthre)
         if save_result:
-            save_folder = os.path.join(
-                vis_folder, time.strftime("%Y_%m_%d_%H_%M_%S", current_time)
-            )
-            os.makedirs(save_folder, exist_ok=True)
-            save_file_name = os.path.join(save_folder, os.path.basename(image_name))
+            # Notebook fix
+            if __name__ == "__main__":
+                save_folder = os.path.join(
+                    vis_folder, time.strftime("%Y_%m_%d_%H_%M_%S", current_time)
+                )
+                os.makedirs(save_folder, exist_ok=True)
+                save_file_name = os.path.join(save_folder, os.path.basename(image_name))
+            else:
+                save_file_name = os.path.join(vis_folder, os.path.basename(image_name))
             logger.info("Saving detection result in {}".format(save_file_name))
-            cv2.imwrite(save_file_name, result_image)
-        ch = cv2.waitKey(0)
-        if ch == 27 or ch == ord("q") or ch == ord("Q"):
-            break
+            cv.imwrite(save_file_name, result_image)
+
+        # Notebook fix
+        if __name__ == "__main__":
+            ch = cv.waitKey(0)
+            if ch == 27 or ch == ord("q") or ch == ord("Q"):
+                break
 
 
 def imageflow_demo(predictor, vis_folder, current_time, args):
-    cap = cv2.VideoCapture(args.path if args.demo == "video" else args.camid)
-    width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)  # float
-    height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)  # float
-    fps = cap.get(cv2.CAP_PROP_FPS)
+    cap = cv.VideoCapture(args.path if args.demo == "video" else args.camid)
+    width = cap.get(cv.CAP_PROP_FRAME_WIDTH)  # float
+    height = cap.get(cv.CAP_PROP_FRAME_HEIGHT)  # float
+    fps = cap.get(cv.CAP_PROP_FPS)
     save_folder = os.path.join(
         vis_folder, time.strftime("%Y_%m_%d_%H_%M_%S", current_time)
     )
@@ -220,8 +248,8 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
     else:
         save_path = os.path.join(save_folder, "camera.mp4")
     logger.info(f"video save_path is {save_path}")
-    vid_writer = cv2.VideoWriter(
-        save_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (int(width), int(height))
+    vid_writer = cv.VideoWriter(
+        save_path, cv.VideoWriter_fourcc(*"mp4v"), fps, (int(width), int(height))
     )
     while True:
         ret_val, frame = cap.read()
@@ -230,7 +258,7 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
             result_frame = predictor.visual(outputs[0], img_info, predictor.confthre)
             if args.save_result:
                 vid_writer.write(result_frame)
-            ch = cv2.waitKey(1)
+            ch = cv.waitKey(1)
             if ch == 27 or ch == ord("q") or ch == ord("Q"):
                 break
         else:
@@ -310,7 +338,8 @@ def main(exp, args):
 
 
 if __name__ == "__main__":
-    args = make_parser().parse_args()
+    import argparse
+    args = make_parser(argparse).parse_args()
     exp = get_exp(args.exp_file, args.name)
 
     main(exp, args)
